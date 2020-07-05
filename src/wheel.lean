@@ -1,33 +1,37 @@
--- as described at https://en.wikipedia.org/wiki/Wheel_theory
+/-
+Copyright (c) 2020 Christopher A. Upshaw. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Author: Christopher A. Upshaw.
+-/
 
 import algebra
 import data.quot
 
+/-!
+# The theory of wheels
+As described at https://en.wikipedia.org/wiki/Wheel_theory.
+-/
+
 universe u
 
-namespace wheel
-variables (w : Type u)
+class wheel (w : Type u) extends add_comm_monoid w, comm_monoid w, has_inv w, has_bot w :=
+(inv_inv : ∀ x : w, x⁻¹⁻¹ = x)
+(mul_inv : ∀ x y : w, (x * y) ⁻¹ = x⁻¹ * y⁻¹)
+(add_mul_add_zero_mul : ∀ x y z : w, (x + y) * z + 0 * z = x * z + y * z)
+(add_mul_mul_inv : ∀ x y z : w, (x + y * z) * y⁻¹ = x * y⁻¹ + z + 0 * y)
+(zero_mul_zero : (0 * 0 : w) = 0)
+(add_zero_mul_mul : ∀ x y z : w, (x + 0 * y) * z = x * z + 0 * y)
+(zero_mul_zero_inv : (0 * 0⁻¹ : w) = ⊥)
+(bot_add : ∀ x : w, ⊥ + x = ⊥)
 
-class wheel extends add_comm_monoid w, comm_monoid w, has_inv w, has_bot w :=
-( inv_involution : ∀ x : w, (x⁻¹)⁻¹ = x)
-( inv_swap_mul : ∀ x y : w, (x * y) ⁻¹ = x⁻¹ * y⁻¹)
-( left_distrib : ∀ x y z: w, (x + y) * z + 0 * z = (x * z) + (y * z))
-( left_distrib_cancel : ∀ x y z: w, (x + y * z) * y⁻¹ = x * y⁻¹ + z + 0 * y )
-( zero_mul_zero : 0 * 0 = (0 : w))
-( pull_out_zero : ∀ x y z : w, (x + 0 * y) * z = x * z + 0 * y)
-( bot_def : (0 : w) * 0⁻¹ = ⊥ )
-( bot_absorbsive : ∀ x : w, ⊥ + x = ⊥)
-
-class subtraction_wheel extends wheel w, has_sub w :=
-(one_minus_one : (1 : w) - 1 = 0)
-(zero_minus : ∀ x : w, 0 - x = (0 - 1) * x )
-
-end wheel
+class sub_wheel (w : Type u) extends wheel w, has_sub w :=
+(one_sub_one : (1 - 1 : w) = 0)
+(zero_sub : ∀ x : w, 0 - x = (0 - 1) * x )
 
 namespace fraction_wheel
 /- Every comm_ring can be extened to a wheel by taking ratios, and quotienting by a multiplicative submonoid (which needs to not include zero for the construction to be non-trivial.) Usually one takes the submonoid of all nonzero values, this gets you the extended rationals from the integers for example. -/
 
-variables (w : Type) [h : comm_ring w] (s : submonoid w)
+variables (w : Type) [comm_ring w] (s : submonoid w)
 
 inductive fraction_equiv (l r : w × w) : Prop
 | intro : ∀ (sl sr : w) (sl_in_s : sl ∈ s) (sr_in_s : sr ∈ s),
@@ -37,167 +41,104 @@ inductive fraction_equiv (l r : w × w) : Prop
 open fraction_equiv
 
 lemma is_reflexive : reflexive (fraction_equiv w s) :=
-  begin intros x,
-  apply (fraction_equiv.intro); try {exact submonoid.one_mem s},
-  all_goals {norm_num},
-  end
+λ x, ⟨1, 1, s.one_mem, s.one_mem, rfl, rfl⟩
 
 lemma is_symmetric : symmetric (fraction_equiv w s)
-| x y ⟨sl, sr, sl_h, sr_h, fst_eq, snd_eq⟩ :=
-  ⟨sr, sl, sr_h, sl_h, symm fst_eq, symm snd_eq⟩
+| x y ⟨sl, sr, sl_h, sr_h, fst_eq, snd_eq⟩ := ⟨sr, sl, sr_h, sl_h, fst_eq.symm, snd_eq.symm⟩
 
 lemma is_transitive : transitive (fraction_equiv w s)
-| x y z xy yz :=
-  begin
-  cases xy; cases yz,
-  apply (fraction_equiv.intro (yz_sl * xy_sl) (xy_sr * yz_sr)),
-  {apply submonoid.mul_mem; assumption},
-  {apply submonoid.mul_mem; assumption},
-  all_goals {repeat {rw mul_assoc}},
-  {rw xy_fst_eq, rw ← yz_fst_eq, repeat {rw ← mul_assoc}, rw mul_comm _ yz_sl},
-  {rw xy_snd_eq, rw ← yz_snd_eq, repeat {rw ← mul_assoc}, rw mul_comm _ yz_sl}
-  end
+| x y z ⟨s1, s2, hs1, hs2, hs3, hs4⟩ ⟨t1, t2, ht1, ht2, ht3, ht4⟩ :=
+    ⟨s1 * t1, s2 * t2, s.mul_mem hs1 ht1, s.mul_mem hs2 ht2,
+      by rw [mul_right_comm, hs3, mul_right_comm, mul_assoc, ht3, mul_assoc],
+      by rw [mul_right_comm, hs4, mul_right_comm, mul_assoc, ht4, mul_assoc]⟩
 
-lemma is_equivalence
-: equivalence (fraction_equiv w s) :=
-⟨ is_reflexive w s,
-  is_symmetric w s,
-  is_transitive w s⟩
+lemma is_equivalence : equivalence (fraction_equiv w s) :=
+⟨is_reflexive w s, is_symmetric w s, is_transitive w s⟩
 
-def fraction_setoid : setoid (w×w) :=
-  { r := fraction_equiv w s, iseqv := is_equivalence w s }
+def fraction_setoid : setoid (w × w) :=
+{ r := fraction_equiv w s, iseqv := is_equivalence w s }
 
-def fraction_wheel (w : Type) [comm_ring w] (s : submonoid w) : Type := quotient (fraction_setoid w s)
+def fraction_wheel (w : Type) [comm_ring w] (s : submonoid w) : Type :=
+quotient (fraction_setoid w s)
 
 open wheel
 
-def raw_add [comm_ring w]
-  : w×w -> w×w -> w×w
-| ⟨x₁, x₂⟩ ⟨y₁, y₂⟩ := ⟨x₁ * y₂ + x₂ * y₁, x₂ * y₂⟩
+def pre_add (x y : w × w) : w × w :=
+(x.1 * y.2 + x.2 * y.1, x.2 * y.2)
 
-local infix ++ := λ x y, raw_add w x y
+lemma pre_add_assoc [comm_ring w] (x y z : w × w) : x ++ y ++ z = x ++ (y ++ z) :=
+prod.ext
+(calc (x.1 * y.2 + x.2 * y.1) * z.2            + x.2 * y.2 * z.1
+    = x.1 * y.2 * z.2   +  x.2 * y.1 * z.2     + x.2 * y.2 * z.1    : by rw add_mul
+... = x.1 * (y.2 * z.2) +  x.2 * y.1 * z.2     + x.2 * y.2 * z.1    : by rw mul_assoc
+... = x.1 * (y.2 * z.2) + (x.2 * y.1 * z.2     + x.2 * y.2 * z.1)   : by rw add_assoc
+... = x.1 * (y.2 * z.2) + (x.2 * (y.1 * z.2)   + x.2 * (y.2 * z.1)) : by rw [mul_assoc, mul_assoc]
+... = x.1 * (y.2 * z.2) +  x.2 * (y.1 * z.2 + y.2 * z.1)            : by rw mul_add)
+(mul_assoc _ _ _)
 
-lemma raw_add_assoc [comm_ring w] (x y z : w×w) : x ++ y ++ z = x ++ (y ++ z) :=
-begin cases x with x₁ x₂; cases y with y₁ y₂; cases z with z₁ z₂
-, unfold raw_add
-, rw prod.eq_iff_fst_eq_snd_eq
-, split; simp
-, rotate, {apply mul_assoc}
-, calc
-       (x₁ * y₂ + x₂ * y₁) * z₂           + x₂ * y₂ * z₁
-      = x₁ * y₂ * z₂   +  x₂ * y₁ * z₂     + x₂ * y₂ * z₁    : by {rw right_distrib}
-  ... = x₁ * (y₂ * z₂) +  x₂ * y₁ * z₂     + x₂ * y₂ * z₁    : by {rw mul_assoc}
-  ... = x₁ * (y₂ * z₂) + (x₂ * y₁ * z₂     + x₂ * y₂ * z₁)   : by {rw add_assoc}
-  ... = x₁ * (y₂ * z₂) + (x₂ * (y₁ * z₂) + x₂ * (y₂ * z₁))  : by {norm_num, repeat {rw mul_assoc}}
-  ... = x₁ * (y₂ * z₂) +  x₂ * (y₁ * z₂ + y₂ * z₁)           : by {rw ← left_distrib}
-end
+local infix `++`:65 := λ x y, pre_add w x y
 
-lemma mul_rearange {t} [comm_ring t] : ∀ a b c d : t, a * b * (c * d) = a * c * (b * d) :=
-  by {intros, ring1}
-
+variables {w}
+lemma mul_rearange (a b c d : w) : a * b * (c * d) = a * c * (b * d) :=
+by simp_rw [mul_assoc, mul_left_comm b]
+variables (w)
 
 def add : fraction_wheel w s → fraction_wheel w s → fraction_wheel w s :=
-quotient.map₂' (raw_add w) $
-begin
-  intros x₀ x₁ x y₀ y₁ y,
-  induction x; induction y,
-  apply (fraction_equiv.intro (x_sl * y_sl) (x_sr * y_sr)),
-  refine submonoid.mul_mem s _ _; assumption,
-  refine submonoid.mul_mem s _ _; assumption,
-  all_goals {cases x₀; cases y₀; cases x₁; cases y₁; unfold raw_add; simp at *},
-  {repeat {rw left_distrib}, apply congr_arg2,
-    calc x_sl * y_sl * (x₀_fst * y₀_snd) = x_sl * x₀_fst * (y_sl * y₀_snd) : mul_rearange _ _ _ _
-    ... = x_sr * x₁_fst * (y_sl * y₀_snd) : by {rw x_fst_eq}
-    ... = x_sr * x₁_fst * (y_sr * y₁_snd) : by {rw y_snd_eq}
-    ... = x_sr * y_sr * (x₁_fst * y₁_snd) : mul_rearange _ _ _ _,
-    calc x_sl * y_sl * (x₀_snd * y₀_fst) = x_sl * x₀_snd * (y_sl * y₀_fst) : mul_rearange _ _ _ _
-    ... = x_sr * x₁_snd * (y_sl * y₀_fst) : by {rw x_snd_eq}
-    ... = x_sr * x₁_snd * (y_sr * y₁_fst) : by {rw y_fst_eq}
-    ... = x_sr * y_sr * (x₁_snd * y₁_fst) : mul_rearange _ _ _ _
-  },
-  {    calc x_sl * y_sl * (x₀_snd * y₀_snd) = x_sl * x₀_snd * (y_sl * y₀_snd) : mul_rearange _ _ _ _
-    ... = x_sr * x₁_snd * (y_sl * y₀_snd) : by {rw x_snd_eq}
-    ... = x_sr * x₁_snd * (y_sr * y₁_snd) : by {rw y_snd_eq}
-    ... = x_sr * y_sr * (x₁_snd * y₁_snd) : mul_rearange _ _ _ _,},
+quotient.map₂' (pre_add w) begin
+  intros x₀ x₁ x y₀ y₁ y, cases x, cases y,
+  use [x_sl * y_sl, x_sr * y_sr, s.mul_mem ‹_› ‹_›, s.mul_mem ‹_› ‹_›], --use `use`
+  -- space after opening curly bracket
+  { dsimp only [pre_add], repeat { rw left_distrib }, congr' 1,
+    calc  x_sl * y_sl * (x₀.1 * y₀.2) = x_sl * x₀.1 * (y_sl * y₀.2) : mul_rearange _ _ _ _
+    ... = x_sr * x₁.1 * (y_sl * y₀.2) : by rw x_fst_eq
+    ... = x_sr * x₁.1 * (y_sr * y₁.2) : by rw y_snd_eq
+    ... = x_sr * y_sr * (x₁.1 * y₁.2) : mul_rearange _ _ _ _,
+    calc  x_sl * y_sl * (x₀.2 * y₀.1) = x_sl * x₀.2 * (y_sl * y₀.1) : mul_rearange _ _ _ _
+    ... = x_sr * x₁.2 * (y_sl * y₀.1) : by rw x_snd_eq
+    ... = x_sr * x₁.2 * (y_sr * y₁.1) : by rw y_fst_eq
+    ... = x_sr * y_sr * (x₁.2 * y₁.1) : mul_rearange _ _ _ _ }, --closing curly bracket on the same line
+  { calc  x_sl * y_sl * (x₀.2 * y₀.2) = x_sl * x₀.2 * (y_sl * y₀.2) : mul_rearange _ _ _ _
+    ... = x_sr * x₁.2 * (y_sl * y₀.2) : by {rw x_snd_eq}
+    ... = x_sr * x₁.2 * (y_sr * y₁.2) : by {rw y_snd_eq}
+    ... = x_sr * y_sr * (x₁.2 * y₁.2) : mul_rearange _ _ _ _ },
 end
 
 local notation `add'` := add w s
 
-@[simp]
-def lift_ : w → fraction_wheel w s := λ x , quotient.mk' (x,1)
+@[simp] def of (x : w) : fraction_wheel w s :=
+quotient.mk' (x, 1) -- spaces
 
-instance fraction_has_lift : has_lift w (fraction_wheel w s) :=
-  ⟨lift_ w s⟩
+instance : has_coe w (fraction_wheel w s) :=
+⟨of w s⟩
 
-instance fraction_has_zero : has_zero (fraction_wheel w s) :=
-  {has_zero . zero := ↑ (0 : w)}
+instance : has_zero (fraction_wheel w s) :=
+⟨(0 : w)⟩
 
-lemma zero_add (x) :
-  (add' 0 x) = x :=
-  begin
-  intros,
-  unfold add,
-  unfold1 has_zero.zero,
-  unfold coe lift_t has_lift_t.lift lift has_lift.lift lift_,
-  rw quotient.map₂'_mk',
-  apply quotient.induction_on' x, clear x, intros x,
-  rw quotient.map'_mk',
-  apply congr_arg,
-  cases x,
-  unfold raw_add,
-  norm_num,
-  end
+-- extra brackets
+lemma zero_add (x) : add' 0 x = x :=
+quotient.induction_on' x $ λ x, congr_arg quotient.mk' $ show (_, _) = _, from prod.ext
+  (show 0 * x.2 + 1 * x.1 = x.1, by rw [zero_mul, one_mul, zero_add])
+  (one_mul _)
 
-lemma add_zero (x) :
-  (add' x 0) = x :=
-  begin
-  intros,
-  unfold add,
-  apply quotient.induction_on' x, clear x, intros x,
-  rw quotient.map₂'_mk',
-  unfold1 has_zero.zero,
-  unfold coe lift_t has_lift_t.lift lift has_lift.lift lift_,
-  rw quotient.map'_mk',
-  apply congr_arg,
-  cases x,
-  unfold raw_add,
-  norm_num
-  end
+-- arugments before colon
+lemma add_comm (x y) : add' x y = add' y x :=
+quotient.induction_on₂' x y $ λ x y, congr_arg quotient.mk' $ show (_, _) = (_, _), from prod.ext
+  (show _ + _ = _ + _, by rw [mul_comm x.1, mul_comm x.2, add_comm])
+  (mul_comm _ _)
 
-lemma add_comm : ∀ x y, add' x y = add' y x :=
-  begin
-  intros,
-  unfold add,
-  apply quotient.induction_on₂' x y, clear x y, intros x y,
-  rw quotient.map₂'_mk',
-  rw quotient.map'_mk',
-  rw quotient.map₂'_mk',
-  rw quotient.map'_mk',
-  cases x, cases y,
-  unfold raw_add,
-  apply congr_arg,
-  apply congr_arg2; ring,
-  end
+-- use zero_add by moving add_comm before this
+lemma add_zero (x) : add' x 0 = x :=
+by rw [add_comm, zero_add]
 
-lemma add_assoc : ∀ x y z, add' (add' x y) z = add' x (add' y z) :=
-  begin
-  intros,
-  unfold add,
-  apply quotient.induction_on₃' x y z, clear x y z, intros x y z,
-  repeat {rw quotient.map₂'_mk'},
-  repeat {rw quotient.map'_mk'},
-  rw quotient.map₂'_mk',
-  rw quotient.map'_mk',
-  apply congr_arg,
-  cases x, cases y, cases z,
-  unfold raw_add,
-  apply congr_arg2; ring,
-  end
+-- use pre_add_assoc
+lemma add_assoc (x y z) : add' (add' x y) z = add' x (add' y z) :=
+quotient.induction_on₃' x y z $ λ x y z, congr_arg quotient.mk' $ pre_add_assoc _ _ _ _
 
-instance fraction_wheel.has_one : has_one (fraction_wheel w s) :=
-  {has_one . one := ↑(1:w)}
+instance : has_one (fraction_wheel w s) :=
+⟨(1 : w)⟩
 
-instance fraction_wheel_is_add_comm_monoid : add_comm_monoid (fraction_wheel w s) :=
+-- use auto name
+instance : add_comm_monoid (fraction_wheel w s) :=
 { add := add',
   add_assoc := add_assoc w s,
   zero := 0,
@@ -310,12 +251,12 @@ def inv : fraction_wheel w s -> fraction_wheel w s :=
   begin
   intros x₀ x₁ x,
   cases x₀; cases x₁; cases x,
-  apply intro x_sl x_sr ; try {assumption}
+  apply intro x_sl x_sr ; assumption
   end
 
 local postfix  `ᵃ`:60 := inv w s
 
-def inv_involution : ∀ x : fraction_wheel w s, (xᵃ)ᵃ = x :=
+lemma inv_involution : ∀ x : fraction_wheel w s, (xᵃ)ᵃ = x :=
   begin
   intros,
   unfold inv,
@@ -325,7 +266,7 @@ def inv_involution : ∀ x : fraction_wheel w s, (xᵃ)ᵃ = x :=
   unfold raw_inv,
   end
 
-def inv_swap_mul : ∀ x y : fraction_wheel w s, (x * y)ᵃ = (xᵃ) * (yᵃ) :=
+lemma inv_swap_mul : ∀ x y : fraction_wheel w s, (x * y)ᵃ = (xᵃ) * (yᵃ) :=
   begin
   intros,
   unfold inv,
@@ -343,7 +284,7 @@ def inv_swap_mul : ∀ x y : fraction_wheel w s, (x * y)ᵃ = (xᵃ) * (yᵃ) :=
 
 instance has_bot : has_bot (fraction_wheel w s) := ⟨quotient.mk' ⟨0,0⟩ ⟩
 
-def bot_absorbsive : ∀ (x : fraction_wheel w s), ⊥ + x = ⊥ :=
+lemma bot_absorbsive : ∀ (x : fraction_wheel w s), ⊥ + x = ⊥ :=
   begin
   intros,
   unfold has_add.add add_semigroup.add add_monoid.add add_comm_monoid.add add,
@@ -452,6 +393,8 @@ apply congr_arg,
 norm_num,
 end
 
+instance inhabited : inhabited (fraction_wheel w s) := ⟨1⟩
+
 instance fraction_wheel_is_wheel : wheel (fraction_wheel w s) :=
 { inv := inv w s,
   inv_involution := inv_involution w s,
@@ -464,3 +407,5 @@ instance fraction_wheel_is_wheel : wheel (fraction_wheel w s) :=
   bot_absorbsive := bot_absorbsive w s }
 
 end fraction_wheel
+
+#lint

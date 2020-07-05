@@ -3,8 +3,6 @@ import data.matrix.notation
 import data.complex.basic
 import wheel
 
-#print integral_domain
-
 noncomputable def non_zero : submonoid ℂ :=
 { carrier := (≠ 0),
   one_mem' := by {unfold has_mem.mem set.mem, norm_num},
