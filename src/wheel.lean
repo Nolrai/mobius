@@ -26,6 +26,9 @@ class wheel (w : Type u) extends add_comm_monoid w, comm_monoid w, has_inv w, ha
 (zero_mul_zero_inv : (0 * 0⁻¹ : w) = ⊥)
 (bot_add : ∀ x : w, ⊥ + x = ⊥)
 
+instance wheel_has_div (w : Type u) [wheel w] : has_div w :=
+  ⟨λ x y, x * y⁻¹⟩
+
 /--
  If there exists an x s.t. 1 + x = 0, then we can also introduce a subtraction.
  Note however that x - x = 0 is only true when 0 * x * x = 0, i.e. 'finite' values of the wheel.
@@ -34,8 +37,6 @@ class wheel (w : Type u) extends add_comm_monoid w, comm_monoid w, has_inv w, ha
 class sub_wheel (w : Type u) extends wheel w, has_sub w :=
 (one_sub_one : (1 - 1 : w) = 0)
 (zero_sub : ∀ x : w, 0 - x = (0 - 1) * x )
-
-namespace fraction_wheel
 
 variables (w : Type) [comm_ring w] (s : submonoid w)
 
@@ -48,14 +49,18 @@ inductive fraction_equiv (l r : w × w) : Prop
 
 open fraction_equiv
 
-lemma is_reflexive : reflexive (fraction_equiv w s) :=
-λ x, ⟨1, 1, s.one_mem, s.one_mem, rfl, rfl⟩
+@[refl]
+lemma is_reflexive (x : w × w) : fraction_equiv w s x x :=
+  ⟨1, 1, s.one_mem, s.one_mem, rfl, rfl⟩
 
-lemma is_symmetric : symmetric (fraction_equiv w s)
-| x y ⟨sl, sr, sl_h, sr_h, fst_eq, snd_eq⟩ := ⟨sr, sl, sr_h, sl_h, fst_eq.symm, snd_eq.symm⟩
+@[symm]
+lemma is_symmetric (l r) : fraction_equiv w s l r → fraction_equiv w s r l
+| ⟨sl, sr, sl_h, sr_h, fst_eq, snd_eq⟩ := ⟨sr, sl, sr_h, sl_h, fst_eq.symm, snd_eq.symm⟩
 
-lemma is_transitive : transitive (fraction_equiv w s)
-| x y z ⟨s1, s2, hs1, hs2, hs3, hs4⟩ ⟨t1, t2, ht1, ht2, ht3, ht4⟩ :=
+@[symm]
+lemma is_transitive (x y z)
+  : fraction_equiv w s x y → fraction_equiv w s y z → fraction_equiv w s x z
+| ⟨s1, s2, hs1, hs2, hs3, hs4⟩ ⟨t1, t2, ht1, ht2, ht3, ht4⟩ :=
     ⟨s1 * t1, s2 * t2, s.mul_mem hs1 ht1, s.mul_mem hs2 ht2,
       by rw [mul_right_comm, hs3, mul_right_comm, mul_assoc, ht3, mul_assoc],
       by rw [mul_right_comm, hs4, mul_right_comm, mul_assoc, ht4, mul_assoc]⟩
@@ -70,6 +75,7 @@ def fraction_wheel (w : Type) [comm_ring w] (s : submonoid w) : Type :=
 quotient (fraction_setoid w s)
 
 open wheel
+namespace fraction_wheel
 
 def pre_add (x y : w × w) : w × w := (x.1 * y.2 + x.2 * y.1, x.2 * y.2)
 
