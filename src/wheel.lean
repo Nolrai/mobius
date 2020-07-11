@@ -325,5 +325,3 @@ instance : wheel (fraction_wheel w s) :=
   bot_add := bot_add w s }
 
 end fraction_wheel
-
-def of_finite {w} [comm_ring w] {s} := fraction_wheel.of w s

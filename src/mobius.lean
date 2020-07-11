@@ -22,6 +22,8 @@ abbreviation reimann_wheel := fraction_wheel ℂ non_zero
 notation `ℂ⊙` := reimann_wheel
 notation `ℂ∞` := {x : ℂ⊙ | x ≠ 0/0}
 
+noncomputable def of_finite : ℂ → ℂ⊙ := fraction_wheel.of ℂ _
+
 universe u
 
 lemma of_div_of (x y : ℂ) : (↑x : ℂ⊙)/y = quotient.mk' ⟨x, y⟩ :=
@@ -306,11 +308,11 @@ lemma G₂.one_smul (b) : 1 •' b = b :=
   unfold1 group.one, simp,
   rw ← matrix.diagonal_one,
   unfold as_mobius, simp,
-  apply reimann_wheel.cases;
-  try {unfold has_bot.bot};
-  try {rw unfold_zero_inv};
-  try {intro c, unfold of_finite fraction_wheel.of};
-  { rw quotient.map'_mk',
+  apply reimann_wheel.cases,
+  any_goals {unfold has_bot.bot},
+  any_goals {rw unfold_zero_inv},
+  any_goals {intro c, unfold of_finite fraction_wheel.of},
+  all_goals { rw quotient.map'_mk' (pre_mobius 1),
     unfold pre_mobius,
     congr,
     { rw [id_0_0, id_0_1],
