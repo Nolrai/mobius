@@ -29,6 +29,11 @@ class wheel (w : Type u) extends add_comm_monoid w, comm_monoid w, has_inv w, ha
 instance wheel_has_div (w : Type u) [wheel w] : has_div w :=
   ⟨λ x y, x * y⁻¹⟩
 
+lemma div_def (w : Type u) [wheel w] (x y : w) : x / y = x * y⁻¹ :=
+  begin
+  unfold has_div.div,
+  end
+
 /--
  If there exists an x s.t. 1 + x = 0, then we can also introduce a subtraction.
  Note however that x - x = 0 is only true when 0 * x * x = 0, i.e. 'finite' values of the wheel.
@@ -37,6 +42,30 @@ instance wheel_has_div (w : Type u) [wheel w] : has_div w :=
 class sub_wheel (w : Type u) extends wheel w, has_sub w :=
 (one_sub_one : (1 - 1 : w) = 0)
 (zero_sub : ∀ x : w, 0 - x = (0 - 1) * x )
+
+open wheel
+
+lemma bot_mul_zero (w : Type) [wheel w] : (⊥ : w) * 0 = ⊥ :=
+  begin
+  rw ← zero_mul_zero_inv,
+  calc (0 : w) * (0 : w)⁻¹ * 0 = 0 * ((0:w)⁻¹ * 0) : by rw mul_assoc
+  ... = 0 * (0 * (0 : w)⁻¹) : by rw (mul_comm ((0 : w)⁻¹) 0)
+  ... = 0 * 0 * (0:w)⁻¹ : by rw mul_assoc
+  ... = 0 * (0 : w)⁻¹ : by rw zero_mul_zero
+  end
+
+lemma bot_inv (w : Type) [wheel w] : (⊥ : w)⁻¹ = ⊥ :=
+  begin
+  rw ← zero_mul_zero_inv,
+  rw [wheel.mul_inv, wheel.inv_inv],
+  apply mul_comm,
+  end
+
+lemma zero_inv_mul_zero (w : Type) [wheel w] : (0 : w)⁻¹ * 0 = ⊥ :=
+  begin
+  rw mul_comm,
+  apply zero_mul_zero_inv,
+  end
 
 variables (w : Type) [comm_ring w] (s : submonoid w)
 
@@ -99,7 +128,7 @@ variables (w)
 def add : fraction_wheel w s → fraction_wheel w s → fraction_wheel w s :=
 quotient.map₂' (pre_add w) begin
   intros x₀ x₁ x y₀ y₁ y, cases x, cases y,
-  use [x_sl * y_sl, x_sr * y_sr, s.mul_mem ‹_› ‹_›, s.mul_mem ‹_› ‹_›], --use `use`
+  use [x_sl * y_sl, x_sr * y_sr, s.mul_mem ‹_› ‹_›, s.mul_mem ‹_› ‹_›],
   -- space after opening curly bracket
   { dsimp only [pre_add], repeat { rw left_distrib }, congr' 1,
     calc  x_sl * y_sl * (x₀.1 * y₀.2) = x_sl * x₀.1 * (y_sl * y₀.2) : mul_rearange _ _ _ _
@@ -296,3 +325,5 @@ instance : wheel (fraction_wheel w s) :=
   bot_add := bot_add w s }
 
 end fraction_wheel
+
+def of_finite {w} [comm_ring w] {s} := fraction_wheel.of w s
