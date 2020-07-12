@@ -39,9 +39,11 @@ lemma div_def (w : Type u) [wheel w] (x y : w) : x / y = x * y⁻¹ :=
  Note however that x - x = 0 is only true when 0 * x * x = 0, i.e. 'finite' values of the wheel.
 -/
 
-class sub_wheel (w : Type u) extends wheel w, has_sub w :=
+class sub_wheel (w : Type u) extends wheel w, has_sub w, has_neg w :=
 (one_sub_one : (1 - 1 : w) = 0)
 (zero_sub : ∀ x : w, 0 - x = (0 - 1) * x )
+(neg_from_sub : ∀ x : w, -x = 0 - x)
+(sub_from_neg : ∀ x y : w, x - y = x + (- y))
 
 open wheel
 

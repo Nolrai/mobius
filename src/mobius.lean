@@ -22,8 +22,6 @@ abbreviation reimann_wheel := fraction_wheel ℂ non_zero
 notation `ℂ⊙` := reimann_wheel
 notation `ℂ∞` := {x : ℂ⊙ | x ≠ 0/0}
 
-noncomputable def of_finite : ℂ → ℂ⊙ := fraction_wheel.of ℂ _
-
 universe u
 
 lemma of_div_of (x y : ℂ) : (↑x : ℂ⊙)/y = quotient.mk' ⟨x, y⟩ :=
@@ -55,8 +53,15 @@ lemma finite_eq {x y : ℂ} : y ≠ 0 → (x : ℂ⊙)/↑(y : ℂ) = ↑(x/y) :
   apply mul_comm,
   end
 
+-- just unfold has_zero.zero at ℂ⊙, usefult to control where/how deep the unfolding goes.
+lemma un_of_zero : (0 : ℂ⊙) = quotient.mk' (0,1) := rfl
+-- just unfold has_zero.zero at ℂ⊙, usefult to control where/how deep the unfolding goes.
+lemma un_of_one : (1 : ℂ⊙) = quotient.mk' (1,1) := rfl
+
+lemma un_of (c : ℂ) : (c : ℂ⊙) = quotient.mk' (c, 1) := rfl
+
 lemma reimann_wheel.cases (P : ℂ⊙ → Prop)
-  : P ⊥ → P 0⁻¹ -> (∀ c : ℂ, P (of_finite c)) -> (∀ z, P z)
+  : P ⊥ → P 0⁻¹ -> (∀ c : ℂ, P c) -> (∀ z, P z)
   | P_bot P_inf P_c z :=
   quotient.induction_on' z $ λ z,
     match z with
@@ -311,7 +316,7 @@ lemma G₂.one_smul (b) : 1 •' b = b :=
   apply reimann_wheel.cases,
   any_goals {unfold has_bot.bot},
   any_goals {rw unfold_zero_inv},
-  any_goals {intro c, unfold of_finite fraction_wheel.of},
+  any_goals {intro c, rw un_of},
   all_goals { rw quotient.map'_mk' (pre_mobius 1),
     unfold pre_mobius,
     congr,
