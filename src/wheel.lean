@@ -26,16 +26,48 @@ class wheel (w : Type u) extends add_comm_monoid w, comm_monoid w, has_inv w, ha
 (zero_mul_zero_inv : (0 * 0⁻¹ : w) = ⊥)
 (bot_add : ∀ x : w, ⊥ + x = ⊥)
 
+instance wheel_has_div (w : Type u) [wheel w] : has_div w :=
+  ⟨λ x y, x * y⁻¹⟩
+
+lemma div_def (w : Type u) [wheel w] (x y : w) : x / y = x * y⁻¹ :=
+  begin
+  unfold has_div.div,
+  end
+
 /--
  If there exists an x s.t. 1 + x = 0, then we can also introduce a subtraction.
  Note however that x - x = 0 is only true when 0 * x * x = 0, i.e. 'finite' values of the wheel.
 -/
 
-class sub_wheel (w : Type u) extends wheel w, has_sub w :=
+class sub_wheel (w : Type u) extends wheel w, has_sub w, has_neg w :=
 (one_sub_one : (1 - 1 : w) = 0)
 (zero_sub : ∀ x : w, 0 - x = (0 - 1) * x )
+(neg_from_sub : ∀ x : w, -x = 0 - x)
+(sub_from_neg : ∀ x y : w, x - y = x + (- y))
 
-namespace fraction_wheel
+open wheel
+
+lemma bot_mul_zero (w : Type) [wheel w] : (⊥ : w) * 0 = ⊥ :=
+  begin
+  rw ← zero_mul_zero_inv,
+  calc (0 : w) * (0 : w)⁻¹ * 0 = 0 * ((0:w)⁻¹ * 0) : by rw mul_assoc
+  ... = 0 * (0 * (0 : w)⁻¹) : by rw (mul_comm ((0 : w)⁻¹) 0)
+  ... = 0 * 0 * (0:w)⁻¹ : by rw mul_assoc
+  ... = 0 * (0 : w)⁻¹ : by rw zero_mul_zero
+  end
+
+lemma bot_inv (w : Type) [wheel w] : (⊥ : w)⁻¹ = ⊥ :=
+  begin
+  rw ← zero_mul_zero_inv,
+  rw [wheel.mul_inv, wheel.inv_inv],
+  apply mul_comm,
+  end
+
+lemma zero_inv_mul_zero (w : Type) [wheel w] : (0 : w)⁻¹ * 0 = ⊥ :=
+  begin
+  rw mul_comm,
+  apply zero_mul_zero_inv,
+  end
 
 variables (w : Type) [comm_ring w] (s : submonoid w)
 
@@ -48,14 +80,18 @@ inductive fraction_equiv (l r : w × w) : Prop
 
 open fraction_equiv
 
-lemma is_reflexive : reflexive (fraction_equiv w s) :=
-λ x, ⟨1, 1, s.one_mem, s.one_mem, rfl, rfl⟩
+@[refl]
+lemma is_reflexive (x : w × w) : fraction_equiv w s x x :=
+  ⟨1, 1, s.one_mem, s.one_mem, rfl, rfl⟩
 
-lemma is_symmetric : symmetric (fraction_equiv w s)
-| x y ⟨sl, sr, sl_h, sr_h, fst_eq, snd_eq⟩ := ⟨sr, sl, sr_h, sl_h, fst_eq.symm, snd_eq.symm⟩
+@[symm]
+lemma is_symmetric (l r) : fraction_equiv w s l r → fraction_equiv w s r l
+| ⟨sl, sr, sl_h, sr_h, fst_eq, snd_eq⟩ := ⟨sr, sl, sr_h, sl_h, fst_eq.symm, snd_eq.symm⟩
 
-lemma is_transitive : transitive (fraction_equiv w s)
-| x y z ⟨s1, s2, hs1, hs2, hs3, hs4⟩ ⟨t1, t2, ht1, ht2, ht3, ht4⟩ :=
+@[symm]
+lemma is_transitive (x y z)
+  : fraction_equiv w s x y → fraction_equiv w s y z → fraction_equiv w s x z
+| ⟨s1, s2, hs1, hs2, hs3, hs4⟩ ⟨t1, t2, ht1, ht2, ht3, ht4⟩ :=
     ⟨s1 * t1, s2 * t2, s.mul_mem hs1 ht1, s.mul_mem hs2 ht2,
       by rw [mul_right_comm, hs3, mul_right_comm, mul_assoc, ht3, mul_assoc],
       by rw [mul_right_comm, hs4, mul_right_comm, mul_assoc, ht4, mul_assoc]⟩
@@ -70,6 +106,7 @@ def fraction_wheel (w : Type) [comm_ring w] (s : submonoid w) : Type :=
 quotient (fraction_setoid w s)
 
 open wheel
+namespace fraction_wheel
 
 def pre_add (x y : w × w) : w × w := (x.1 * y.2 + x.2 * y.1, x.2 * y.2)
 
@@ -93,7 +130,7 @@ variables (w)
 def add : fraction_wheel w s → fraction_wheel w s → fraction_wheel w s :=
 quotient.map₂' (pre_add w) begin
   intros x₀ x₁ x y₀ y₁ y, cases x, cases y,
-  use [x_sl * y_sl, x_sr * y_sr, s.mul_mem ‹_› ‹_›, s.mul_mem ‹_› ‹_›], --use `use`
+  use [x_sl * y_sl, x_sr * y_sr, s.mul_mem ‹_› ‹_›, s.mul_mem ‹_› ‹_›],
   -- space after opening curly bracket
   { dsimp only [pre_add], repeat { rw left_distrib }, congr' 1,
     calc  x_sl * y_sl * (x₀.1 * y₀.2) = x_sl * x₀.1 * (y_sl * y₀.2) : mul_rearange _ _ _ _
@@ -112,6 +149,15 @@ end
 
 local infix `+'`:65 := add w s
 
+lemma sound (a b : w × w)
+  : fraction_equiv w s a b →
+  (quotient.mk' a) = (quotient.mk' b : fraction_wheel w s) :=
+  begin intro h,
+  apply quot.sound,
+  change (fraction_equiv w s a b),
+  exact h,
+  end
+
 @[simp] def of (x : w) : fraction_wheel w s :=
 quotient.mk' (x, 1)
 
@@ -119,7 +165,7 @@ instance : has_coe w (fraction_wheel w s) :=
 ⟨of w s⟩
 
 instance : has_zero (fraction_wheel w s) :=
-⟨(0 : w)⟩
+⟨ of w s 0⟩
 
 lemma zero_add (x) : 0 +' x = x :=
 quotient.induction_on' x $ λ x, congr_arg quotient.mk' $ show (_, _) = _, from prod.ext
