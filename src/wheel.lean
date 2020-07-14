@@ -149,6 +149,15 @@ end
 
 local infix `+'`:65 := add w s
 
+lemma sound (a b : w × w)
+  : fraction_equiv w s a b →
+  (quotient.mk' a) = (quotient.mk' b : fraction_wheel w s) :=
+  begin intro h,
+  apply quot.sound,
+  change (fraction_equiv w s a b),
+  exact h,
+  end
+
 @[simp] def of (x : w) : fraction_wheel w s :=
 quotient.mk' (x, 1)
 
@@ -156,7 +165,7 @@ instance : has_coe w (fraction_wheel w s) :=
 ⟨of w s⟩
 
 instance : has_zero (fraction_wheel w s) :=
-⟨(0 : w)⟩
+⟨ of w s 0⟩
 
 lemma zero_add (x) : 0 +' x = x :=
 quotient.induction_on' x $ λ x, congr_arg quotient.mk' $ show (_, _) = _, from prod.ext
