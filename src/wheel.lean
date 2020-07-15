@@ -35,7 +35,7 @@ lemma div_def (w : Type u) [wheel w] (x y : w) : x / y = x * y⁻¹ :=
   end
 
 /--
- If there exists an x s.t. 1 + x = 0, then we can also introduce a subtraction.
+ If there exists an x σ.t. 1 + x = 0, then we can also introduce a subtraction.
  Note however that x - x = 0 is only true when 0 * x * x = 0, i.e. 'finite' values of the wheel.
 -/
 
@@ -69,113 +69,151 @@ lemma zero_inv_mul_zero (w : Type) [wheel w] : (0 : w)⁻¹ * 0 = ⊥ :=
   apply zero_mul_zero_inv,
   end
 
-variables (w : Type) [comm_ring w] (s : submonoid w)
+namespace fraction
+
+variables (α : Type) [comm_ring α] (σ : submonoid α)
 
 /-- Every comm_ring can be extened to a wheel by taking ratios, and quotienting by a multiplicative submonoid (which needs to not include zero for the construction to be non-trivial.) Usually one takes the submonoid of all nonzero values, this gets you the extended rationals from the integers for example. -/
 
-inductive fraction_equiv (l r : w × w) : Prop
-| intro : ∀ (sl sr : w) (sl_in_s : sl ∈ s) (sr_in_s : sr ∈ s),
-    ∀ (fst_eq : sl * l.fst = sr * r.fst) (snd_eq : sl * l.snd = sr * r.snd),
+structure fraction (σ : submonoid α) := (up : α) (down : α)
+
+@[simp] lemma mk.eta : ∀{p : fraction α σ}, fraction.mk p.up p.down = p
+| ⟨a, b⟩ := rfl
+
+@[ext]
+lemma ext {p q : fraction α σ} (h₁ : p.up = q.up) (h₂ : p.down = q.down)
+  : p = q :=
+  begin
+  cases p; cases q,
+  simp at *, apply and.intro h₁ h₂
+  end
+
+inductive fraction_equiv (l r : fraction α σ) : Prop
+| intro : ∀ (sl sr : α) (sl_in_s : sl ∈ σ) (sr_in_s : sr ∈ σ),
+    ∀ (up_eq : sl * l.up = sr * r.up) (down_eq : sl * l.down = sr * r.down),
     fraction_equiv
 
 open fraction_equiv
 
 @[refl]
-lemma is_reflexive (x : w × w) : fraction_equiv w s x x :=
-  ⟨1, 1, s.one_mem, s.one_mem, rfl, rfl⟩
+lemma is_reflexive (x : fraction α σ) : fraction_equiv α σ x x :=
+  ⟨1, 1, σ.one_mem, σ.one_mem, rfl, rfl⟩
 
 @[symm]
-lemma is_symmetric (l r) : fraction_equiv w s l r → fraction_equiv w s r l
-| ⟨sl, sr, sl_h, sr_h, fst_eq, snd_eq⟩ := ⟨sr, sl, sr_h, sl_h, fst_eq.symm, snd_eq.symm⟩
+lemma is_symmetric (l r) : fraction_equiv α σ l r → fraction_equiv α σ r l
+| ⟨sl, sr, sl_h, sr_h, up_eq, down_eq⟩ := ⟨sr, sl, sr_h, sl_h, up_eq.symm, down_eq.symm⟩
 
-@[symm]
+@[trans]
 lemma is_transitive (x y z)
-  : fraction_equiv w s x y → fraction_equiv w s y z → fraction_equiv w s x z
+  : fraction_equiv α σ x y → fraction_equiv α σ y z → fraction_equiv α σ x z
 | ⟨s1, s2, hs1, hs2, hs3, hs4⟩ ⟨t1, t2, ht1, ht2, ht3, ht4⟩ :=
-    ⟨s1 * t1, s2 * t2, s.mul_mem hs1 ht1, s.mul_mem hs2 ht2,
+    ⟨s1 * t1, s2 * t2, σ.mul_mem hs1 ht1, σ.mul_mem hs2 ht2,
       by rw [mul_right_comm, hs3, mul_right_comm, mul_assoc, ht3, mul_assoc],
       by rw [mul_right_comm, hs4, mul_right_comm, mul_assoc, ht4, mul_assoc]⟩
 
-lemma is_equivalence : equivalence (fraction_equiv w s) :=
-⟨is_reflexive w s, is_symmetric w s, is_transitive w s⟩
+lemma is_equivalence : equivalence (fraction_equiv α σ) :=
+⟨is_reflexive α σ, is_symmetric α σ, is_transitive α σ⟩
 
-def fraction_setoid : setoid (w × w) :=
-{ r := fraction_equiv w s, iseqv := is_equivalence w s }
+def fraction_setoid : setoid (fraction α σ) :=
+{ r := fraction_equiv α σ, iseqv := is_equivalence α σ }
 
-def fraction_wheel (w : Type) [comm_ring w] (s : submonoid w) : Type :=
-quotient (fraction_setoid w s)
+@[simp]
+instance fraction_setoid' : setoid (fraction α σ) := fraction_setoid α σ
+
+def fraction_wheel (α : Type) [comm_ring α] (σ : submonoid α) : Type :=
+  quotient (fraction_setoid α σ)
 
 open wheel
-namespace fraction_wheel
 
-def pre_add (x y : w × w) : w × w := (x.1 * y.2 + x.2 * y.1, x.2 * y.2)
+def pre_add (x y : fraction α σ) : fraction α  σ := ⟨x.up * y.down + x.down * y.up, x.down * y.down⟩
 
-local infix `++` := λ x y, pre_add w x y
+local infix `++` := λ x y, pre_add α σ x y
 
-lemma pre_add_assoc [comm_ring w] (x y z : w × w) : x ++ y ++ z = x ++ (y ++ z) :=
-prod.ext
-(calc (x.1 * y.2 + x.2 * y.1) * z.2            + x.2 * y.2 * z.1
-    = x.1 * y.2 * z.2   +  x.2 * y.1 * z.2     + x.2 * y.2 * z.1    : by rw add_mul
-... = x.1 * (y.2 * z.2) +  x.2 * y.1 * z.2     + x.2 * y.2 * z.1    : by rw mul_assoc
-... = x.1 * (y.2 * z.2) + (x.2 * y.1 * z.2     + x.2 * y.2 * z.1)   : by rw add_assoc
-... = x.1 * (y.2 * z.2) + (x.2 * (y.1 * z.2)   + x.2 * (y.2 * z.1)) : by rw [mul_assoc, mul_assoc]
-... = x.1 * (y.2 * z.2) +  x.2 * (y.1 * z.2 + y.2 * z.1)            : by rw mul_add)
+@[simp]
+lemma pre_add_def (x y : fraction α σ) : x ++ y = ⟨x.up * y.down + x.down * y.up, x.down * y.down⟩
+  := rfl
+
+lemma pre_add_assoc (x y z : fraction α σ) : x ++ y ++ z = x ++ (y ++ z) :=
+fraction.ext α σ
+(calc (x.up * y.down + x.down * y.up) * z.down            + x.down * y.down * z.up
+    = x.up * y.down * z.down   +  x.down * y.up * z.down     + x.down * y.down * z.up    : by rw add_mul
+... = x.up * (y.down * z.down) +  x.down * y.up * z.down     + x.down * y.down * z.up    : by rw mul_assoc
+... = x.up * (y.down * z.down) + (x.down * y.up * z.down     + x.down * y.down * z.up)   : by rw add_assoc
+... = x.up * (y.down * z.down) + (x.down * (y.up * z.down)   + x.down * (y.down * z.up)) : by rw [mul_assoc, mul_assoc]
+... = x.up * (y.down * z.down) +  x.down * (y.up * z.down + y.down * z.up)            : by rw mul_add)
 (mul_assoc _ _ _)
 
-variables {w}
-lemma mul_rearange (a b c d : w) : a * b * (c * d) = a * c * (b * d) :=
+variables {α}
+lemma mul_rearange (a b c d : α) : a * b * (c * d) = a * c * (b * d) :=
 by simp_rw [mul_assoc, mul_left_comm b]
-variables (w)
+variables (α)
 
-def add : fraction_wheel w s → fraction_wheel w s → fraction_wheel w s :=
-quotient.map₂' (pre_add w) begin
+def add : fraction_wheel α σ → fraction_wheel α σ → fraction_wheel α σ :=
+quotient.map₂ (pre_add α σ) begin
   intros x₀ x₁ x y₀ y₁ y, cases x, cases y,
-  use [x_sl * y_sl, x_sr * y_sr, s.mul_mem ‹_› ‹_›, s.mul_mem ‹_› ‹_›],
+  use [x_sl * y_sl, x_sr * y_sr, σ.mul_mem ‹_› ‹_›, σ.mul_mem ‹_› ‹_›],
   -- space after opening curly bracket
   { dsimp only [pre_add], repeat { rw left_distrib }, congr' 1,
-    calc  x_sl * y_sl * (x₀.1 * y₀.2) = x_sl * x₀.1 * (y_sl * y₀.2) : mul_rearange _ _ _ _
-    ... = x_sr * x₁.1 * (y_sl * y₀.2) : by rw x_fst_eq
-    ... = x_sr * x₁.1 * (y_sr * y₁.2) : by rw y_snd_eq
-    ... = x_sr * y_sr * (x₁.1 * y₁.2) : mul_rearange _ _ _ _,
-    calc  x_sl * y_sl * (x₀.2 * y₀.1) = x_sl * x₀.2 * (y_sl * y₀.1) : mul_rearange _ _ _ _
-    ... = x_sr * x₁.2 * (y_sl * y₀.1) : by rw x_snd_eq
-    ... = x_sr * x₁.2 * (y_sr * y₁.1) : by rw y_fst_eq
-    ... = x_sr * y_sr * (x₁.2 * y₁.1) : mul_rearange _ _ _ _ }, --closing curly bracket on the same line
-  { calc  x_sl * y_sl * (x₀.2 * y₀.2) = x_sl * x₀.2 * (y_sl * y₀.2) : mul_rearange _ _ _ _
-    ... = x_sr * x₁.2 * (y_sl * y₀.2) : by {rw x_snd_eq}
-    ... = x_sr * x₁.2 * (y_sr * y₁.2) : by {rw y_snd_eq}
-    ... = x_sr * y_sr * (x₁.2 * y₁.2) : mul_rearange _ _ _ _ },
+    calc  x_sl * y_sl * (x₀.up * y₀.down) = x_sl * x₀.up * (y_sl * y₀.down) : mul_rearange _ _ _ _
+    ... = x_sr * x₁.up * (y_sl * y₀.down) : by rw x_up_eq
+    ... = x_sr * x₁.up * (y_sr * y₁.down) : by rw y_down_eq
+    ... = x_sr * y_sr * (x₁.up * y₁.down) : mul_rearange _ _ _ _,
+    calc  x_sl * y_sl * (x₀.down * y₀.up) = x_sl * x₀.down * (y_sl * y₀.up) : mul_rearange _ _ _ _
+    ... = x_sr * x₁.down * (y_sl * y₀.up) : by rw x_down_eq
+    ... = x_sr * x₁.down * (y_sr * y₁.up) : by rw y_up_eq
+    ... = x_sr * y_sr * (x₁.down * y₁.up) : mul_rearange _ _ _ _ }, --closing curly bracket on the same line
+  { calc  x_sl * y_sl * (x₀.down * y₀.down) = x_sl * x₀.down * (y_sl * y₀.down) : mul_rearange _ _ _ _
+    ... = x_sr * x₁.down * (y_sl * y₀.down) : by {rw x_down_eq}
+    ... = x_sr * x₁.down * (y_sr * y₁.down) : by {rw y_down_eq}
+    ... = x_sr * y_sr * (x₁.down * y₁.down) : mul_rearange _ _ _ _ },
 end
 
-local infix `+'`:65 := add w s
+local infix `+'`:65 := add α σ
 
-lemma sound (a b : w × w)
-  : fraction_equiv w s a b →
-  (quotient.mk' a) = (quotient.mk' b : fraction_wheel w s) :=
+@[simp]
+lemma quotient.map₂_mk {α β γ} (f : α → β → γ) [sa : setoid α] [sb : setoid β] [sc : setoid γ] (h : ((≈) ⇒ (≈) ⇒ (≈)) f f) (x : α) (y : β) :
+  quotient.map₂ f h (⟦x⟧ : quotient sa) (⟦y⟧ : quotient sb) = (⟦f x y⟧ : quotient sc) := rfl
+
+@[simp]
+lemma add_def' (x' y' : fraction_wheel α σ) (x y : fraction α σ) :
+  (x' = quotient.mk x) → (y' = quotient.mk y) →
+  x' +' y' = quotient.mk ⟨x.up * y.down + x.down * y.up, x.down * y.down⟩
+  :=
+  begin
+  unfold add,
+  intros xh yh,
+  subst_vars,
+  dsimp [fraction],
+  end
+
+lemma sound (a b : fraction α σ)
+  : fraction_equiv α σ a b →
+  (quotient.mk' a) = (quotient.mk' b : fraction_wheel α σ) :=
   begin intro h,
   apply quot.sound,
-  change (fraction_equiv w s a b),
+  change (fraction_equiv α σ a b),
   exact h,
   end
 
-@[simp] def of (x : w) : fraction_wheel w s :=
-quotient.mk' (x, 1)
+@[simp] def of (x : α) : fraction_wheel α σ :=
+quotient.mk ⟨x, 1⟩
 
-instance : has_coe w (fraction_wheel w s) :=
-⟨of w s⟩
+instance : has_coe α (fraction_wheel α σ) :=
+⟨of α σ⟩
 
-instance : has_zero (fraction_wheel w s) :=
-⟨ of w s 0⟩
+instance : has_zero (fraction_wheel α σ) :=
+⟨ of α σ 0⟩
 
 lemma zero_add (x) : 0 +' x = x :=
-quotient.induction_on' x $ λ x, congr_arg quotient.mk' $ show (_, _) = _, from prod.ext
-  (show 0 * x.2 + 1 * x.1 = x.1, by rw [zero_mul, one_mul, zero_add])
+quotient.induction_on' x $ λ x, congr_arg quotient.mk' $
+  fraction.ext α σ
+  (show 0 * x.down + 1 * x.up = x.up, by rw [zero_mul, one_mul, zero_add])
   (one_mul _)
 
 -- arugments before colon
 lemma add_comm (x y) : x +' y = y +' x :=
 quotient.induction_on₂' x y $ λ x y, congr_arg quotient.mk' $ show (_, _) = (_, _), from prod.ext
-  (show _ + _ = _ + _, by rw [mul_comm x.1, mul_comm x.2, add_comm])
+  (show _ + _ = _ + _, by rw [mul_comm x.up, mul_comm x.down, add_comm])
   (mul_comm _ _)
 
 lemma add_zero (x) : x +' 0 = x :=
@@ -184,44 +222,44 @@ by rw [add_comm, zero_add]
 lemma add_assoc (x y z) : x +' y +' z = x +' (y +' z) :=
 quotient.induction_on₃' x y z $ λ x y z, congr_arg quotient.mk' $ pre_add_assoc _ _ _ _
 
-instance : has_one (fraction_wheel w s) :=
-⟨(1 : w)⟩
+instance : has_one (fraction_wheel α σ) :=
+⟨(1 : α)⟩
 
-instance : add_comm_monoid (fraction_wheel w s) :=
-{ add := add w s,
-  add_assoc := add_assoc w s,
+instance : add_comm_monoid (fraction_wheel α σ) :=
+{ add := add α σ,
+  add_assoc := add_assoc α σ,
   zero := 0,
-  zero_add := zero_add w s,
-  add_zero := add_zero w s,
-  add_comm := add_comm w s }
+  zero_add := zero_add α σ,
+  add_zero := add_zero α σ,
+  add_comm := add_comm α σ }
 
-def pre_mul [comm_ring w] (x y : w×w) : w×w
-  := ⟨x.1 * y.1, x.2 * y.2⟩
+def pre_mul [comm_ring α] (x y : fraction  α σ) : fraction  α σ
+  := ⟨x.up * y.up, x.down * y.down⟩
 
-local infix `**`:60 := pre_mul w
+local infix `**`:60 := pre_mul α
 
-lemma pre_mul_assoc [comm_ring w] (x y z: w×w)
+lemma pre_mul_assoc [comm_ring α] (x y z: fraction  α σ)
   : x ** y ** z = x ** (y ** z) :=
   show (_, _) = (_, _), from prod.ext (mul_assoc _ _ _) (mul_assoc _ _ _)
 
-def mul : fraction_wheel w s → fraction_wheel w s → fraction_wheel w s :=
-quotient.map₂' (pre_mul w) $
+def mul : fraction_wheel α σ → fraction_wheel α σ → fraction_wheel α σ :=
+quotient.map₂' (pre_mul α) $
 begin
   intros x₀ x₁ x y₀ y₁ y, obtain := x, obtain := y,
-  use [x_sl * y_sl, x_sr * y_sr, s.mul_mem ‹_› ‹_›, s.mul_mem ‹_› ‹_›],
+  use [x_sl * y_sl, x_sr * y_sr, σ.mul_mem ‹_› ‹_›, σ.mul_mem ‹_› ‹_›],
   all_goals
     { obtain := x₀, obtain := y₀, obtain := x₁, obtain := y₁, unfold pre_mul; dsimp only [] },
-  {    calc x_sl * y_sl * (x₀_fst * y₀_fst) = x_sl * x₀_fst * (y_sl * y₀_fst) : mul_rearange _ _ _ _
-    ... = x_sr * x₁_fst * (y_sl * y₀_fst) : by {rw x_fst_eq}
-    ... = x_sr * x₁_fst * (y_sr * y₁_fst) : by {rw y_fst_eq}
-    ... = x_sr * y_sr * (x₁_fst * y₁_fst) : mul_rearange _ _ _ _,},
-  {    calc x_sl * y_sl * (x₀_snd * y₀_snd) = x_sl * x₀_snd * (y_sl * y₀_snd) : mul_rearange _ _ _ _
-    ... = x_sr * x₁_snd * (y_sl * y₀_snd) : by {rw x_snd_eq}
-    ... = x_sr * x₁_snd * (y_sr * y₁_snd) : by {rw y_snd_eq}
-    ... = x_sr * y_sr * (x₁_snd * y₁_snd) : mul_rearange _ _ _ _,}
+  {    calc x_sl * y_sl * (x₀_up * y₀_up) = x_sl * x₀_up * (y_sl * y₀_up) : mul_rearange _ _ _ _
+    ... = x_sr * x₁_up * (y_sl * y₀_up) : by {rw x_up_eq}
+    ... = x_sr * x₁_up * (y_sr * y₁_up) : by {rw y_up_eq}
+    ... = x_sr * y_sr * (x₁_up * y₁_up) : mul_rearange _ _ _ _,},
+  {    calc x_sl * y_sl * (x₀_down * y₀_down) = x_sl * x₀_down * (y_sl * y₀_down) : mul_rearange _ _ _ _
+    ... = x_sr * x₁_down * (y_sl * y₀_down) : by {rw x_down_eq}
+    ... = x_sr * x₁_down * (y_sr * y₁_down) : by {rw y_down_eq}
+    ... = x_sr * y_sr * (x₁_down * y₁_down) : mul_rearange _ _ _ _,}
 end
 
-local infix `*'`:60 := mul w s
+local infix `*'`:60 := mul α σ
 
 lemma one_mul (x) : 1 *' x = x :=
 quotient.induction_on' x $ λ x, congr_arg quotient.mk' $
@@ -239,42 +277,42 @@ lemma mul_assoc (x y z) : x *' y *' z = x *' (y *' z) :=
   quotient.induction_on₃' x y z $ λ x y z, congr_arg quotient.mk' $
   pre_mul_assoc _ _ _ _
 
-instance : comm_monoid (fraction_wheel w s) :=
-{ mul := mul w s,
-  mul_assoc := mul_assoc w s,
+instance : comm_monoid (fraction_wheel α σ) :=
+{ mul := mul α σ,
+  mul_assoc := mul_assoc α σ,
   one := has_one.one,
-  one_mul := one_mul w s,
-  mul_one := mul_one w s,
-  mul_comm := mul_comm w s }
+  one_mul := one_mul α σ,
+  mul_one := mul_one α σ,
+  mul_comm := mul_comm α σ }
 
-def pre_inv (x : w×w) : w×w := ⟨x.2, x.1⟩
+def pre_inv (x : fraction  α σ) : fraction  α σ := ⟨x.down, x.up⟩
 
-lemma pre_inv_inv : ∀ x, pre_inv w (pre_inv w x) = x
+lemma pre_inv_inv : ∀ x, pre_inv α (pre_inv α x) = x
 | ⟨l, r⟩ := rfl
 
-def inv : fraction_wheel w s -> fraction_wheel w s :=
-  quotient.map' (pre_inv w) $
+def inv : fraction_wheel α σ -> fraction_wheel α σ :=
+  quotient.map' (pre_inv α) $
   begin
   intros x₀ x₁ x, obtain := x₀; obtain := x₁; obtain := x,
   use [x_sl, x_sr]; assumption
   end
 
-instance : has_inv (fraction_wheel w s) := ⟨inv w s⟩
+instance : has_inv (fraction_wheel α σ) := ⟨inv α s⟩
 
-lemma inv_inv (x : fraction_wheel w s) : (x⁻¹)⁻¹ = x :=
+lemma inv_inv (x : fraction_wheel α σ) : (x⁻¹)⁻¹ = x :=
   quotient.induction_on' x $ λ x, congr_arg quotient.mk' $
   begin
   unfold pre_inv,
-  apply prod.ext; dsimp only [prod.fst, prod.snd]; refl
+  apply prod.ext; dsimp only [prod.up, prod.down]; refl
   end
 
-lemma mul_inv (x y : fraction_wheel w s) : (x * y)⁻¹ = (x⁻¹) * (y⁻¹) :=
+lemma mul_inv (x y : fraction_wheel α σ) : (x * y)⁻¹ = (x⁻¹) * (y⁻¹) :=
   quotient.induction_on₂' x y $ λ x y, congr_arg quotient.mk' rfl
 
-instance : has_bot (fraction_wheel w s) :=
+instance : has_bot (fraction_wheel α σ) :=
   ⟨quotient.mk' ⟨0,0⟩ ⟩
 
-lemma bot_add (x : fraction_wheel w s) : ⊥ + x = ⊥ :=
+lemma bot_add (x : fraction_wheel α σ) : ⊥ + x = ⊥ :=
   quotient.induction_on' x $ λ x, congr_arg quotient.mk' $
   begin
   unfold pre_add;
@@ -283,7 +321,7 @@ lemma bot_add (x : fraction_wheel w s) : ⊥ + x = ⊥ :=
   end
 
 lemma add_mul_add_zero_mul
-  (x y z : fraction_wheel w s) : (x + y) * z + 0 * z = x * z + y * z :=
+  (x y z : fraction_wheel α σ) : (x + y) * z + 0 * z = x * z + y * z :=
   quotient.induction_on₃' x y z $ λ x y z, congr_arg quotient.mk' $
   begin
   unfold pre_add pre_mul,
@@ -291,14 +329,14 @@ lemma add_mul_add_zero_mul
   end
 
 lemma add_mul_mul_inv
-  (x y z : fraction_wheel w s) : (x + y * z) * (y⁻¹) = x * (y⁻¹) + z + 0 * y :=
+  (x y z : fraction_wheel α σ) : (x + y * z) * (y⁻¹) = x * (y⁻¹) + z + 0 * y :=
   quotient.induction_on₃' x y z $ λ x y z, congr_arg quotient.mk' $
   begin
   unfold pre_add pre_mul,
   apply prod.ext; norm_num; ring,
   end
 
-lemma zero_mul_zero : (0 * 0 : fraction_wheel w s) = 0 :=
+lemma zero_mul_zero : (0 * 0 : fraction_wheel α σ) = 0 :=
   congr_arg quotient.mk' $
   begin
   unfold pre_mul,
@@ -308,31 +346,31 @@ lemma zero_mul_zero : (0 * 0 : fraction_wheel w s) = 0 :=
   end
 
 lemma add_zero_mul_mul
-  (x y z : fraction_wheel w s) : (x + 0 * y) * z = x * z + 0 * y :=
+  (x y z : fraction_wheel α σ) : (x + 0 * y) * z = x * z + 0 * y :=
   quotient.induction_on₃' x y z $ λ x y z, congr_arg quotient.mk' $
   begin
   unfold pre_add pre_mul,
   apply prod.ext; norm_num; ring,
   end
 
-lemma zero_mul_zero_inv : (0 : fraction_wheel w s) * (0⁻¹) = ⊥ :=
+lemma zero_mul_zero_inv : (0 : fraction_wheel α σ) * (0⁻¹) = ⊥ :=
  congr_arg quotient.mk' $
   begin
   unfold pre_add pre_mul pre_inv,
   apply prod.ext; norm_num,
   end
 
-instance : inhabited (fraction_wheel w s) := ⟨1⟩
+instance : inhabited (fraction_wheel α σ) := ⟨1⟩
 
-instance : wheel (fraction_wheel w s) :=
-{ inv := inv w s,
-  inv_inv := inv_inv w s,
-  mul_inv := mul_inv w s,
-  add_mul_add_zero_mul := add_mul_add_zero_mul w s,
-  add_mul_mul_inv := add_mul_mul_inv w s,
-  zero_mul_zero := zero_mul_zero w s,
-  add_zero_mul_mul := add_zero_mul_mul w s,
-  zero_mul_zero_inv := zero_mul_zero_inv w s,
-  bot_add := bot_add w s }
+instance : wheel (fraction_wheel α σ) :=
+{ inv := inv α σ,
+  inv_inv := inv_inv α σ,
+  mul_inv := mul_inv α σ,
+  add_mul_add_zero_mul := add_mul_add_zero_mul α σ,
+  add_mul_mul_inv := add_mul_mul_inv α σ,
+  zero_mul_zero := zero_mul_zero α σ,
+  add_zero_mul_mul := add_zero_mul_mul α σ,
+  zero_mul_zero_inv := zero_mul_zero_inv α σ,
+  bot_add := bot_add α σ }
 
 end fraction_wheel
