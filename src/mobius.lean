@@ -17,26 +17,24 @@ noncomputable def non_zero : submonoid ℂ :=
 
 open wheel
 
-abbreviation reimann_wheel := fraction_wheel ℂ non_zero
+abbreviation reimann_wheel := fraction.fraction_wheel ℂ non_zero
 
 notation `ℂ⊙` := reimann_wheel
 notation `ℂ∞` := {x : ℂ⊙ | x ≠ 0/0}
 
 universe u
 
-lemma of_div_of (x y : ℂ) : (↑x : ℂ⊙)/y = quotient.mk' ⟨x, y⟩ :=
+lemma of_div_of (x y : ℂ) : (↑x : ℂ⊙)/y = quotient.mk ⟨x, y⟩ :=
   begin
   apply quotient.sound,
-  unfold fraction_wheel.pre_inv fraction_wheel.pre_mul,
-  dsimp, rw [one_mul y, mul_one x],
+  simp,
   end
 
-lemma inf_eq {x : ℂ} : x ≠ 0 → (0 : ℂ⊙)⁻¹ = quotient.mk' ⟨x, 0⟩ :=
+lemma inf_eq {x : ℂ} : x ≠ 0 → (0 : ℂ⊙)⁻¹ = quotient.mk ⟨x, 0⟩ :=
   begin
   intro h,
   apply quotient.sound,
-  unfold fraction_wheel.pre_inv fraction_wheel.pre_mul,
-  dsimp,
+  simp,
   use [x, 1, h, one_ne_zero]; dsimp,
   rw [comm_monoid.one_mul], repeat {rw [comm_monoid.mul_one]},
   rw [mul_zero _, mul_zero _],
@@ -46,24 +44,17 @@ lemma finite_eq {x y : ℂ} : y ≠ 0 → (x : ℂ⊙)/↑(y : ℂ) = ↑(x/y) :
   begin
   intro h,
   apply quotient.sound,
-  unfold fraction_wheel.pre_inv fraction_wheel.pre_mul,
   dsimp, repeat {rw mul_one}, rw one_mul,
   use [1, y, one_ne_zero, h]; dsimp,
   rw one_mul, exact (mul_div_cancel' x h).symm,
   apply mul_comm,
   end
 
--- just unfold has_zero.zero at ℂ⊙, usefult to control where/how deep the unfolding goes.
-lemma un_of_zero : (0 : ℂ⊙) = quotient.mk' (0,1) := rfl
--- just unfold has_zero.zero at ℂ⊙, usefult to control where/how deep the unfolding goes.
-lemma un_of_one : (1 : ℂ⊙) = quotient.mk' (1,1) := rfl
-
-lemma un_of (c : ℂ) : (c : ℂ⊙) = quotient.mk' (c, 1) := rfl
 
 lemma reimann_wheel.cases (P : ℂ⊙ → Prop)
   : P ⊥ → P 0⁻¹ -> (∀ c : ℂ, P c) -> (∀ z, P z)
   | P_bot P_inf P_c z :=
-  quotient.induction_on' z $ λ z,
+  quotient.induction_on z $ λ z,
     match z with
     | ⟨z₁, z₂⟩ :=
       if z₂_0 : z₂ = 0
@@ -87,7 +78,8 @@ lemma det_2x2 : m.det = m 0 0 * m 1 1 - m 1 0 * m 0 1 :=
 calc m.det = ((1 : units ℤ) * (_ * (_ * 1))) + (((-1 : units ℤ) * (_ * (_ * 1))) + 0) : refl m.det
 ... = m 0 0 * m 1 1 - m 1 0 * m 0 1 : by { simp, ring }
 
-lemma ext_2x2 : m 0 0 = n 0 0 → m 0 1 = n 0 1 → m 1 0 = n 1 0 → m 1 1 = n 1 1 → m = n :=
+@[ext]
+lemma ext : m 0 0 = n 0 0 → m 0 1 = n 0 1 → m 1 0 = n 1 0 → m 1 1 = n 1 1 → m = n :=
   begin intros h₀₀ h₀₁ h₁₀ h₁₁,
   apply matrix.ext,
   intros i,
@@ -112,25 +104,42 @@ lemma mul_2x2 : m * n =
       ![m 1 0 * n 0 0 + m 1 1 * n 1 0, m 1 0 * n 0 1 + m 1 1 * n 1 1]
   ] :=
 begin
-apply ext_2x2; simp; unfold matrix.mul; apply dot_2,
+apply M_2x2.ext; simp; unfold matrix.mul; rw dot_2,
 end
 
 end M_2x2
 
-def pre_mobius (m : M₂) : ℂ×ℂ → ℂ×ℂ :=
-λ z, ⟨m 0 0 * z.1 + m 0 1 * z.2, m 1 0 * z.1 + m 1 1 * z.2⟩
+notation `ℂℂ` := fraction.fraction ℂ non_zero
+
+noncomputable def pre_mobius (m : M₂) : ℂℂ  → ℂℂ :=
+λ z, ⟨m 0 0 * z.up + m 0 1 * z.down, m 1 0 * z.up + m 1 1 * z.down⟩
+
+@[simp]
+lemma pre_mobius_def (m : M₂) (z : ℂℂ) :
+  pre_mobius m z =
+    ⟨m 0 0 * z.up + m 0 1 * z.down, m 1 0 * z.up + m 1 1 * z.down⟩ :=
+  rfl
 
 noncomputable def as_mobius (m : M₂) : ℂ⊙ → ℂ⊙:=
-  quotient.map' (pre_mobius m)
+  quotient.map (pre_mobius m)
     begin
     intros x₀ x₁ x, cases x,
-    use [x_sl, x_sr, x_sl_in_s, x_sr_in_s];
-    unfold pre_mobius; simp; repeat {rw left_distrib};
-    repeat {rw ← mul_assoc};
-    repeat {rw mul_comm x_sl, rw mul_comm x_sr};
-    repeat {rw mul_assoc};
-    repeat {rw [x_fst_eq, x_snd_eq]},
+    use [x_sl, x_sr, x_sl_in_s, x_sr_in_s],
+    all_goals
+      { simp, simp_rw left_distrib,
+        simp_rw ← mul_assoc,
+        simp_rw [mul_comm x_sl, mul_comm x_sr],
+        simp_rw mul_assoc,
+        rw x_up_eq,
+        rw x_down_eq
+      },
     end
+
+@[simp]
+lemma mobius_def (m : M₂) (z : ℂℂ) :
+  (as_mobius m ⟦z⟧ : ℂ⊙)  =
+    quotient.mk ⟨m 0 0 * z.up + m 0 1 * z.down, m 1 0 * z.up + m 1 1 * z.down⟩ :=
+  rfl
 
 noncomputable instance mobius_as_scalar : has_scalar M₂ ℂ⊙ := ⟨as_mobius⟩
 
@@ -141,9 +150,13 @@ variables m n : M₂
 
 def unit_inv : M₂ := ![ ![ m 1 1, - m 0 1], ![ -m 1 0, m 0 0] ]
 
+@[simp]
+lemma unit_inv_def : unit_inv m = ![ ![ m 1 1, - m 0 1], ![ -m 1 0, m 0 0] ]
+  := rfl
+
 lemma unit_inv_unit_inv : unit_inv (unit_inv m) = m :=
   begin
-  unfold unit_inv; apply ext_2x2; simp,
+  unfold unit_inv; apply ext; simp,
   end
 
 lemma det_unit_inv : det m.unit_inv = det m :=
@@ -155,7 +168,7 @@ lemma det_unit_inv : det m.unit_inv = det m :=
 lemma mul_unit_inv : m * m.unit_inv = m.det • (1 : M₂) :=
   begin unfold unit_inv,
   rw mul_2x2, simp,
-  apply ext_2x2; rw det_2x2; simp; ring; rw ← matrix.diagonal_one; rw matrix.diagonal_val_ne,
+  apply ext; rw det_2x2; simp; ring; rw ← matrix.diagonal_one; rw matrix.diagonal_val_ne,
   repeat {rw [zero_mul]}, symmetry, apply sub_zero,
   intro h, rw fin.ext_iff at h, simp at h, exact h,
   ring,
@@ -178,7 +191,7 @@ lemma mul_add_assoc {T} [ring T] (x a b c d : T)
 
 lemma smul_mul (s : ℂ) : s • m * n = s • (m * n) :=
   begin rw [mul_2x2, mul_2x2], unfold has_scalar.smul,
-  apply ext_2x2; simp; symmetry; apply mul_add_assoc,
+  apply ext; simp; symmetry; apply mul_add_assoc,
   end
 
 noncomputable def inv : M₂ := (det m)⁻¹ • unit_inv m
@@ -199,14 +212,14 @@ lemma smul_unit_inv (s : ℂ) : s • m.unit_inv = (s • m).unit_inv :=
   begin
   unfold unit_inv,
   unfold has_scalar.smul,
-  apply ext_2x2; simp,
+  apply ext; simp,
   end
 
 lemma smul_det (s : ℂ) : (s • m).det = s * s * m.det :=
   begin
   rw [det_2x2, det_2x2],
   unfold has_scalar.smul,
-  simp_rw fraction_wheel.mul_rearange,
+  simp_rw fraction.mul_rearange,
   rw mul_sub,
   end
 
@@ -227,7 +240,7 @@ lemma inv_det_nonzero (h : m.det ≠ 0) : det m.inv ≠ 0 :=
 
 lemma inv_inv_helper (d : ℂ) (d_ne_0 : d ≠ 0) : d⁻¹ * d⁻¹ * d * d = 1 :=
   calc d⁻¹ * d⁻¹ * d * d = d⁻¹ * d⁻¹ * (d * d) : by ring
-    ... = d⁻¹ * d * (d⁻¹ * d) : fraction_wheel.mul_rearange d⁻¹ d⁻¹ d d
+    ... = d⁻¹ * d * (d⁻¹ * d) : fraction.mul_rearange d⁻¹ d⁻¹ d d
     ... = 1 * 1 : by simp_rw inv_mul_cancel d_ne_0
     ... = 1 : mul_one 1
 
@@ -300,10 +313,8 @@ lemma id_1_1 : (1 : M₂) 1 1 = 1 :=
 noncomputable def G₂.smul (g : G₂) := as_mobius g.val
 local infix ` •' `:60 := G₂.smul
 
-notation `z` := (has_zero.zero : ℂ⊙)
-
-lemma unfold_zero_inv : (0 : ℂ⊙)⁻¹ = quotient.mk' (1,0) :=
-  congr_arg quotient.mk' rfl
+lemma unfold_zero_inv : (0 : ℂ⊙)⁻¹ = quotient.mk ⟨1, 0⟩ :=
+  congr_arg quotient.mk rfl
 
 lemma G₂.one_smul (b) : 1 •' b = b :=
   begin
@@ -314,33 +325,35 @@ lemma G₂.one_smul (b) : 1 •' b = b :=
   rw ← matrix.diagonal_one,
   unfold as_mobius, simp,
   apply reimann_wheel.cases,
+  rotate 2, {intro c, simp},
   any_goals {unfold has_bot.bot},
   any_goals {rw unfold_zero_inv},
-  any_goals {intro c, rw un_of},
-  all_goals { rw quotient.map'_mk' (pre_mobius 1),
-    unfold pre_mobius,
-    congr,
-    { rw [id_0_0, id_0_1],
-      rw [one_mul, zero_mul],
-      simp,
+  all_goals
+    { rw quotient.map_mk (pre_mobius 1),
+      unfold pre_mobius,
+      congr,
+      { rw [id_0_0, id_0_1],
+        rw [one_mul, zero_mul],
+        simp,
+      },
+      { rw [id_1_0, id_1_1],
+        rw [one_mul, zero_mul],
+        simp,
+      },
     },
-    { rw [id_1_0, id_1_1],
-      rw [one_mul, zero_mul],
-      simp,
-    },
-  },
+
   end
 
 lemma G₂.mul_smul (x y : G₂) (b : ℂ⊙) : (x * y) •' b = x •' (y •' b) :=
   begin
   change as_mobius (x.val * y.val) b = as_mobius x.val (as_mobius y.val b),
-  apply quotient.induction_on' b, clear b, intro b,
-  unfold as_mobius,
-  repeat {rw quotient.map'_mk'},
-  apply congr_arg,
-  cases b,
-  unfold pre_mobius,
-  rw M_2x2.mul_2x2, simp, split; ring,
+  apply quotient.induction_on b, clear b, intro b,
+  rw M_2x2.mul_2x2,
+  simp,
+  apply fraction.refl_to_eq,
+  apply setoid.refl,
+  simp,
+  split; ring,
   end
 
 noncomputable instance : mul_action G₂ ℂ⊙ :=
